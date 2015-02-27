@@ -12,6 +12,7 @@
 
 int main(int argc, char *argv[], char *envp[])
 {
+	// hello guy
 	pid_t pid1;
 	
 	char tmp[10] = "";
