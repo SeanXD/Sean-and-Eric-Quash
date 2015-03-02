@@ -10,6 +10,15 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+static char* currentDir;
+
+//Display the current user? and directory
+void showPrompt()
+{
+	currentDir = (char*) calloc(1024, sizeof(char));
+	printf("\n[Quash 2015] %s: ", getcwd(currentDir, 1024));
+}
+
 int main(int argc, char *argv[], char *envp[])
 {
 	//quick change
@@ -18,10 +27,12 @@ int main(int argc, char *argv[], char *envp[])
 	char tmp[10] = "";
 	char c = '\0';
 	
-	printf("\n[Quash 2015] ");
-	while(c != EOF) {
+	showPrompt();
+	while(c != EOF)
+	{
 		c = getchar();
-		switch(c) {
+		switch(c) 
+		{
 			case '\n':
 				if (!strcmp(tmp,"ls"))
 				{
@@ -42,7 +53,7 @@ int main(int argc, char *argv[], char *envp[])
 				}
 				
 				bzero(tmp, sizeof(tmp));
-				printf("[Quash 2015] ");
+				showPrompt();
 				break;
 				
 			default: strncat(tmp, &c, 1);
@@ -53,3 +64,4 @@ int main(int argc, char *argv[], char *envp[])
 	printf("\n");
 	return 0;
 }
+
