@@ -18,7 +18,7 @@ int main(int argc, char *argv[], char *envp[])
 	char tmp[10] = "";
 	char c = '\0';
 	
-	char *cmdArg[6];
+	//char *tmp = argv[0];
 	
 	printf("\n[Quash 2015] ");
 	while(c != EOF) {
