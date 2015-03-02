@@ -10,20 +10,35 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+static char* currentDir;
+
+#define colorNormal  	"\x1B[0m"
+#define colorRed  	"\x1B[31m"
+#define colorGreen  	"\x1B[32m"
+#define colorBlue  	"\x1B[34m"
+
+//Display the current user? and directory
+void showPrompt()
+{
+	currentDir = (char*) calloc(1024, sizeof(char));
+	printf("\n[Quash-2015] %s: ", getcwd(currentDir, 1024));
+}
+
 int main(int argc, char *argv[], char *envp[])
 {
-	//quick change
+	//after new branch
+	//post branch change
 	pid_t pid1;
 	
 	char tmp[10] = "";
-	char c = '\0';
+	char input = '\0';
 	
-	char *cmdArg[6];
-	
-	printf("\n[Quash 2015] ");
-	while(c != EOF) {
-		c = getchar();
-		switch(c) {
+	showPrompt();
+	while(input != EOF)
+	{
+		input = getchar();
+		switch(input)
+		{
 			case '\n':
 				if (!strcmp(tmp,"ls"))
 				{
@@ -34,24 +49,21 @@ int main(int argc, char *argv[], char *envp[])
 					else
 						wait(NULL);
 				}
-				else if (!strcmp(tmp, "cd"))
-				{
-					chdir(argv[1]);
-				}
 				else if (!strcmp(tmp,"quit") || !strcmp(tmp,"exit"))
 				{
-					printf("Exit read correctly\n");
+					printf("Exiting Quash-2015\n\n");
+					exit(EXIT_SUCCESS);
 				}
 				else
 				{
-					printf("IDK what to do with: %s\n", tmp);
+					printf(colorRed "IDK what to do with: %s\n" colorNormal, tmp);
 				}
 				
 				bzero(tmp, sizeof(tmp));
-				printf("[Quash 2015] ");
+				showPrompt();
 				break;
 				
-			default: strncat(tmp, &c, 1);
+			default: strncat(tmp, &input, 1);
 				break;
 		}
 	}
