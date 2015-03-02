@@ -12,7 +12,7 @@
 
 int main(int argc, char *argv[], char *envp[])
 {
-	// hello guy
+	//quick change
 	pid_t pid1;
 	
 	char tmp[10] = "";
