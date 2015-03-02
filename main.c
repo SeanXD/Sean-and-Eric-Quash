@@ -12,6 +12,9 @@
 
 static char* currentDir;
 
+#define colorNormal  	"\x1B[0m"
+#define colorRed  	"\x1B[31m"
+
 //Display the current user? and directory
 void showPrompt()
 {
@@ -21,17 +24,16 @@ void showPrompt()
 
 int main(int argc, char *argv[], char *envp[])
 {
-	//quick change
 	pid_t pid1;
 	
 	char tmp[10] = "";
-	char c = '\0';
+	char input = '\0';
 	
 	showPrompt();
-	while(c != EOF)
+	while(input != EOF)
 	{
-		c = getchar();
-		switch(c) 
+		input = getchar();
+		switch(input) 
 		{
 			case '\n':
 				if (!strcmp(tmp,"ls"))
@@ -45,18 +47,19 @@ int main(int argc, char *argv[], char *envp[])
 				}
 				else if (!strcmp(tmp,"quit") || !strcmp(tmp,"exit"))
 				{
-					printf("Exit read correctly\n");
+					printf("Exiting\n");
+					exit(EXIT_SUCCESS);
 				}
 				else
 				{
-					printf("IDK what to do with: %s\n", tmp);
+					printf(colorRed "IDK what to do with: %s\n" colorNormal, tmp);
 				}
 				
 				bzero(tmp, sizeof(tmp));
 				showPrompt();
 				break;
 				
-			default: strncat(tmp, &c, 1);
+			default: strncat(tmp, &input, 1);
 				break;
 		}
 	}
