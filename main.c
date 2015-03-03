@@ -16,6 +16,8 @@ static int tokenCount;
 static char inputString[100] = "";
 static pid_t mainPID;
 
+static int numActiveJobs = 0;
+
 static char path[100] = "";
 static char home[100] = "";
 
@@ -63,9 +65,27 @@ void cleanupInput()
 	bzero(inputString, sizeof(inputString));
 }
 
-void beginJob(char *cmd[], char *file)
+void beginJob(char *cmd[], char *file, int desc, int mode)
 {
-
+	int pid;
+	pid = fork();
+	switch (pid) {
+	case -1:
+		exit(EXIT_FAILURE);
+		break;
+	case 0:
+		setpgid(0, 0);
+		if (mode == 'f')
+				tcsetpgrp(STDIN_FILENO, getpid());
+		else if (mode == 'b')
+				 printf("[%d] %d\n", numActiveJobs++, (int)getpid());
+		//execute command
+		exit(EXIT_SUCCESS);
+		break;
+	default:
+		
+		break;
+	}
 }
 
 int main(int argc, char *argv[], char *envp[])
@@ -108,13 +128,13 @@ int main(int argc, char *argv[], char *envp[])
 				else if (!strcmp(tokens[0], "bg"))
 				{
 					if (tokens[1] == NULL)
-						beginJob(tokens, "STANDARD"/*, 0, 'f'*/);
+						beginJob(tokens, (char *)"STANDARD", 0, 'f');
 					if (!strcmp("in", tokens[1]))
-						beginJob(tokens + 3, *(tokens + 2)/*, 1, 'b'*/);
+						beginJob(tokens + 3, *(tokens + 2), 1, 'b');
 					else if (!strcmp("out", tokens[1]))
-						beginJob(tokens + 3, *(tokens + 2)/*, 2, 'b'*/);
+						beginJob(tokens + 3, *(tokens + 2), 2, 'b');
 					else
-						beginJob(tokens + 1, "STANDARD"/*, 0, 'b'*/);
+						beginJob(tokens + 1, (char *)"STANDARD", 0, 'b');
 				}
 				else if (!strcmp(tokens[0], "fg"))
 				{
@@ -140,7 +160,7 @@ int main(int argc, char *argv[], char *envp[])
 				}
 				else
 				{
-					beginJob(tokens, "STANDARD"/*, 0, 'f'*/);
+					beginJob(tokens, (char *)"STANDARD", 0, 'f');
 					//printf(cRed "IDK what to do with: %s\n" cNormal, tokens[0]);
 				}
 				
