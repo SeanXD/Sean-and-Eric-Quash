@@ -95,10 +95,10 @@ int main(int argc, char *argv[], char *envp[])
 				}
 				else if (!strcmp(tokens[0], "cd"))
 				{
-					if (tokenCount > 1)
-						printf("got a specific directly\n");
-					else
-						printf("just go home\n");
+					if (tokenCount == 1)
+						chdir(getenv("HOME"));
+					else if (chdir(tokens[1]) == -1)
+						printf("Invalid Path\n");
 				}
 				else
 				{
