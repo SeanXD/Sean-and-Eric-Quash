@@ -16,6 +16,9 @@ static int tokenCount;
 static char inputString[100] = "";
 static pid_t mainPID;
 
+static char path[100] = "";
+static char home[100] = "";
+
 #define cNormal		"\x1B[0m"
 #define cRed  		"\x1B[31m"
 #define cGreen		"\x1B[32m"
@@ -68,7 +71,6 @@ int main(int argc, char *argv[], char *envp[])
 	while(input != EOF)
 	{
 		input = getchar();
-		//printf("input: %s\n", &input);
 		switch(input)
 		{
 			case '\n':
@@ -76,7 +78,7 @@ int main(int argc, char *argv[], char *envp[])
 				tokenizeString(inputString);
 				printTokens();
 
-				if (!strcmp(inputString,"ls") || !strcmp(inputString,"dir"))
+				if (!strcmp(tokens[0], "ls") || !strcmp(tokens[0], "dir"))
 				{
 					mainPID = fork();
 					if (mainPID == 0)
@@ -86,14 +88,21 @@ int main(int argc, char *argv[], char *envp[])
 					else
 						wait(NULL);
 				}
-				else if (!strcmp(inputString,"quit") || !strcmp(inputString,"exit") || !strcmp(inputString,"q"))
+				else if (!strcmp(tokens[0], "quit") || !strcmp(tokens[0], "exit") || !strcmp(tokens[0], "q"))
 				{
 					printf("Exiting Quash-2015\n\n");
 					exit(EXIT_SUCCESS);
 				}
+				else if (!strcmp(tokens[0], "cd"))
+				{
+					if (tokenCount > 1)
+						printf("got a specific directly\n");
+					else
+						printf("just go home\n");
+				}
 				else
 				{
-					printf(cRed "IDK what to do with: %s\n" cNormal, inputString);
+					printf(cRed "IDK what to do with: %s\n" cNormal, tokens[0]);
 				}
 				
 				cleanupInput();
