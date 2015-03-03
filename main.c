@@ -63,6 +63,11 @@ void cleanupInput()
 	bzero(inputString, sizeof(inputString));
 }
 
+void beginJob(char *cmd[], char *file)
+{
+
+}
+
 int main(int argc, char *argv[], char *envp[])
 {
 	char input = '\0';
@@ -100,9 +105,43 @@ int main(int argc, char *argv[], char *envp[])
 					else if (chdir(tokens[1]) == -1)
 						printf("Invalid Path\n");
 				}
+				else if (!strcmp(tokens[0], "bg"))
+				{
+					if (tokens[1] == NULL)
+						beginJob(tokens, "STANDARD"/*, 0, 'f'*/);
+					if (!strcmp("in", tokens[1]))
+						beginJob(tokens + 3, *(tokens + 2)/*, 1, 'b'*/);
+					else if (!strcmp("out", tokens[1]))
+						beginJob(tokens + 3, *(tokens + 2)/*, 2, 'b'*/);
+					else
+						beginJob(tokens + 1, "STANDARD"/*, 0, 'b'*/);
+				}
+				else if (!strcmp(tokens[0], "fg"))
+				{
+					
+				}
+				else if (!strcmp(tokens[0], "jobs"))
+				{
+					
+				}
+				else if (tokenCount == 3)
+				{
+					if (!strcmp(tokens[1], "|"))
+					{
+						
+					}
+				}			
+				else if (tokenCount > 3)
+				{
+					if (strcmp(tokens[tokenCount - 2], "|") == 0 )
+					{
+						
+					}
+				}
 				else
 				{
-					printf(cRed "IDK what to do with: %s\n" cNormal, tokens[0]);
+					beginJob(tokens, "STANDARD"/*, 0, 'f'*/);
+					//printf(cRed "IDK what to do with: %s\n" cNormal, tokens[0]);
 				}
 				
 				cleanupInput();
