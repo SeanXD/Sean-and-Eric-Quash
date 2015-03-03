@@ -11,55 +11,97 @@
 #include <fcntl.h>
 
 static char* currentDir;
+static char* tokens[10];
+static int tokenCount;
+static char inputString[100] = "";
+static pid_t mainPID;
 
-#define colorNormal  	"\x1B[0m"
-#define colorRed  	"\x1B[31m"
+#define cNormal		"\x1B[0m"
+#define cRed  		"\x1B[31m"
+#define cGreen		"\x1B[32m"
+#define cYellow		"\x1B[33m"
+#define cBlue		"\x1B[34m"
+#define cMagenta	"\x1B[35m"
+#define cCyan		"\x1B[36m"
+#define cWhite		"\x1B[37m"
 
 //Display the current user? and directory
 void showPrompt()
 {
 	currentDir = (char*) calloc(1024, sizeof(char));
-	printf("\n[Quash 2015] %s: ", getcwd(currentDir, 1024));
+	printf("\n[Quash-2015] %s: ", getcwd(currentDir, 1024));
+}
+
+// Split up the messy string into tokens, and insert them into tokens[]
+void tokenizeString(char inputString[100])
+{
+	char* currentToken = strtok(inputString, " ");
+
+	while (currentToken)
+	{
+		tokens[tokenCount] = currentToken;
+		tokenCount++;
+		currentToken = strtok(NULL, " ");
+	}
+}
+
+// Print tokens[] for debugging purposes
+void printTokens()
+{
+	printf(cCyan "Displaying %d tokens:\n" cNormal, tokenCount);
+	for (int i = 0; i < tokenCount; i++)
+		printf("tokens[%d] %s\n", i, tokens[i]);
+}
+
+// Reset the token count and empty the input string
+void cleanupInput()
+{
+	tokenCount = 0;
+	bzero(inputString, sizeof(inputString));
 }
 
 int main(int argc, char *argv[], char *envp[])
 {
-	pid_t pid1;
-	
-	char tmp[10] = "";
 	char input = '\0';
 	
 	showPrompt();
 	while(input != EOF)
 	{
 		input = getchar();
-		switch(input) 
+		//printf("input: %s\n", &input);
+		switch(input)
 		{
 			case '\n':
-				if (!strcmp(tmp,"ls"))
+				//split up tmp into tokens
+				tokenizeString(inputString);
+				printTokens();
+
+				if (!strcmp(inputString,"ls") || !strcmp(inputString,"dir"))
 				{
-					pid1 = fork();
-					
-					if (pid1 == 0)
+					mainPID = fork();
+					if (mainPID == 0)
+					{
 						execve("/bin/ls", argv, envp);
+					}
 					else
 						wait(NULL);
 				}
-				else if (!strcmp(tmp,"quit") || !strcmp(tmp,"exit"))
+				else if (!strcmp(inputString,"quit") || !strcmp(inputString,"exit") || !strcmp(inputString,"q"))
 				{
-					printf("Exiting\n");
+					printf("Exiting Quash-2015\n\n");
 					exit(EXIT_SUCCESS);
 				}
 				else
 				{
-					printf(colorRed "IDK what to do with: %s\n" colorNormal, tmp);
+					printf(cRed "IDK what to do with: %s\n" cNormal, inputString);
 				}
 				
-				bzero(tmp, sizeof(tmp));
+				cleanupInput();
 				showPrompt();
 				break;
 				
-			default: strncat(tmp, &input, 1);
+			default: 
+				strncat(inputString, &input, 1);
 				break;
 		}
 	}
@@ -67,4 +109,3 @@ int main(int argc, char *argv[], char *envp[])
 	printf("\n");
 	return 0;
 }
-
