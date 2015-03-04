@@ -26,7 +26,7 @@ typedef struct job // struct that defines a job
 	char *name;
 	pid_t pid;
 	//pid_t pgid; // not yet useful
-	int status;
+	int status; 	//1 fg, 2 bg, 3 sus, 4 waiting
 	char *descriptor;
 	struct job *next;
 } quashJob;
@@ -53,9 +53,7 @@ quashJob* insertJob(pid_t inPID, /*pid_t inPGID,*/ char* inName, char* inDescrip
 	//temp->pgid = inPGID;
 	temp->descriptor = (char*) malloc(sizeof(inDescriptor));
 	temp->descriptor = strcpy(temp->descriptor, inDescriptor);
-	
 	temp->status = inStatus;
-	
 	temp->next = NULL;
 	
 	if (!jobList)
@@ -145,22 +143,33 @@ void putJobFG(quashJob* job)
 	tcsetpgrp(STDIN_FILENO, job->pid);
 	
 	int termStatus;
-	/*while (!waitpid(job->pid, &termStatus, WNOHANG))
+	while (!waitpid(job->pid, &termStatus, WNOHANG))
 	{
-		if (job->status == 
-	*/
+		if (job->status == 3)
+			return;
+	}
+	jobList = deleteJob(job);
+	
 	printf("end of jobFG\n");
 	tcsetpgrp(STDIN_FILENO, quashPID);
 }
 
 void putJobBG(quashJob* job)
 {
+	if (job == NULL) return;
 	
+	tcsetpgrp(STDIN_FILENO, quashPID);
 }
 
 // Print the list of jobs
 void printJobs() 
 {
+	if (!jobList)
+	{
+		printf("Empty!\n");
+		return;
+	}
+	
 	printf("Current jobs:\n");
 	printf("%-5s %-20s %-8s %-12s %-12s \n",
 	       "Job", "Name", "PID", "Descriptor", "Status");
@@ -213,8 +222,26 @@ void printTokens()
 // Reset the token count and empty the input string
 void cleanupInput() 
 {
-	tokenCount = 0;
+	while (tokenCount > 0)
+	{
+		//printf("deleting tokens[%d]\n", tokenCount);
+		tokens[tokenCount] = NULL;
+		tokenCount--;
+	}
+	//printf("%d tokens leftover\n", tokenCount);
 	bzero(inputString, sizeof(inputString));
+}
+
+void handleSIGCHLD(int p)
+{
+	pid_t pid;
+	int termination;
+	pid = waitpid(WAIT_ANY, &termination, WUNTRACED | WNOHANG);
+	if (pid > 0)
+	{
+		
+	}
+	tcsetpgrp(STDIN_FILENO, quashPID);
 }
 
 // modes:	1	foreground
@@ -232,15 +259,17 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 		break;
 	case 0:
 		//printf("child? is %d\n", getpid());
-		//usleep(20000);
+		signal(SIGCHLD, &handleSIGCHLD);
 		
+		usleep(20000);
 		setpgrp();
 		if (mode == 1)
 			tcsetpgrp(quashPID, getpid());
 		if (mode == 2)
 			printf("[%d] %d\n", ++jobCount, (int)getpid());
 		
-		// ExecuteCommand
+		
+		// ExecuteCommand start
 		printf("execvp starting\n");
 		
 		int commandDesc;
@@ -257,15 +286,20 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 			dup2(commandDesc, STDOUT_FILENO);
 			close(commandDesc);
 		}
-		//if (execvp(*cmd, cmd) == -1)
-		//	perror("Quash2015 ERROR");
+		if (execvp(*cmd, cmd) == -1)
+			perror("Quash2015 ERROR");
 		
-		printf("after execvp\n");
-		//exit(EXIT_SUCCESS);
+		// ExecuteCommmand end
+		
+		printf("before exit\n");
+		exit(EXIT_SUCCESS);
+		printf("after  exit\n");
+		tcsetpgrp(STDIN_FILENO, quashPID);
 		break;
 	default:
-		//usleep(420420);
+		usleep(42042.0);
 		//printf("parent? is %d\n", getpid());
+		
 		setpgid(pid, pid);
 		
 		jobList = insertJob(pid, *(cmd), file, mode);
@@ -273,21 +307,22 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 		
 		if (mode == 1)
 			putJobFG(thisJob);
+		/*
 		if (mode == 2)
 			putJobBG(thisJob);
-		
+		*/
 		printf("after parent\n");
+		
 		break;
 	}	
 }
-
-
 
 int main(int argc, char *argv[], char *envp[])
 {
 	char input = '\0';
 	
 	quashPID = getpgrp();
+	signal(SIGCHLD, &handleSIGCHLD);
 	
 	showPrompt();
 	while(input != EOF)
@@ -300,15 +335,7 @@ int main(int argc, char *argv[], char *envp[])
 			tokenizeString(inputString);
 			printTokens();
 
-			if (!strcmp(tokens[0], "ls") || !strcmp(tokens[0], "dir"))
-			{
-				mainPID = fork();
-				if (mainPID == 0)
-					execve("/bin/ls", argv, envp);
-				else
-					usleep(4204.20);
-			}
-			else if (!strcmp(tokens[0], "quit") || !strcmp(tokens[0], "exit") || !strcmp(tokens[0], "q"))
+			if (!strcmp(tokens[0], "quit") || !strcmp(tokens[0], "exit") || !strcmp(tokens[0], "q"))
 			{
 				printf("Exiting Quash-2015\n\n");
 				exit(EXIT_SUCCESS);
