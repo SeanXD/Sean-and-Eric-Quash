@@ -60,7 +60,7 @@ quashJob* insertJob(pid_t inPID, /*pid_t inPGID,*/ char* inName, char* inDescrip
 
 		jobCount++;
 		temp->id = jobCount;
-		printf("inserted job #%d\n", temp->id);
+		//printf("inserted job #%d\n", temp->id);
 		return temp;
 	}
 	else
@@ -71,13 +71,14 @@ quashJob* insertJob(pid_t inPID, /*pid_t inPGID,*/ char* inName, char* inDescrip
 			cur = cur->next;
 		
 		temp->id = cur->id + 1;
-		printf("inserted job #%d\n", temp->id);
+		//printf("inserted job #%d\n", temp->id);
 		cur->next = temp;
 		jobCount++;
 		return jobList;
 	}
 }
 
+// Remove a job from the linked list
 quashJob* deleteJob(quashJob* targetJob)
 {
 	if (!jobList) return NULL;
@@ -90,7 +91,7 @@ quashJob* deleteJob(quashJob* targetJob)
 	
 	if (curJob->pid == targetJob->pid)
 	{
-		printf("deleted job #%d\n", curJob->id);
+		//printf("deleted job #%d\n", curJob->id);
 		// The head is to be deleted
 		curJob = curJob->next;
 		jobCount--;
@@ -103,7 +104,7 @@ quashJob* deleteJob(quashJob* targetJob)
 		{
 			// nextJob is to be deleted, 
 			// so use its ->next to connect the new list
-			printf("deleted job #%d\n", nextJob->id);
+			//printf("deleted job #%d\n", nextJob->id);
 			jobCount--;
 			curJob->next = nextJob->next;
 		}
@@ -113,7 +114,7 @@ quashJob* deleteJob(quashJob* targetJob)
 	return jobList;
 }
 
-// Return the job 
+// Returns the job searched by pid or job id
 quashJob* getJob(int target, int searchType)
 {
 	quashJob* cur = jobList;
@@ -123,7 +124,10 @@ quashJob* getJob(int target, int searchType)
 		while (cur)
 		{
 			if (cur->pid == target)
+			{
+				//printf("found job %d - %d\n", cur->id, cur->pid);
 				return cur;
+			}
 			else
 				cur = cur->next;
 		}
@@ -247,7 +251,17 @@ void handleSIGCHLD(int p)
 	pid = waitpid(WAIT_ANY, &termination, WUNTRACED | WNOHANG);
 	if (pid > 0)
 	{
+		printf("SIGCHLD's pid: %d\n", pid);
+		quashJob* thisJob = getJob(pid, BY_PID);
 		
+		if (thisJob == NULL)
+		{
+			printf("null job\n");
+			return;
+		}
+		quashJob* job = getJob(pid, BY_PID);
+
+		jobList = deleteJob(job);
 	}
 	tcsetpgrp(STDIN_FILENO, quashPID);
 }
@@ -273,17 +287,14 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
                 signal(SIGQUIT, SIG_DFL);
 		signal(SIGCHLD, &handleSIGCHLD);
 		
-		usleep(20000);
+		//usleep(20000);
 		setpgrp();
 		if (mode == 1)
 			tcsetpgrp(quashPID, getpid());
 		if (mode == 2)
-			printf("[%d] %d\n", ++jobCount, (int)getpid());
-		
+			printf("Running %d-%d in the background\n", ++jobCount, (int)getpid());
 		
 		// ExecuteCommand start
-		//printf("execvp starting\n");
-		
 		int commandDesc;
 		
 		if(desc == STDIN_FILENO)
@@ -299,17 +310,16 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 			close(commandDesc);
 		}
 		if (execvp(*cmd, cmd) == -1)
-			perror("Quash-2015 ERROR");
+		{
+			printf(cRed "Failed to run: %s\n" cNor, *cmd);
+			//perror("Quash-2015 ERROR");
+		}
 		
-		// ExecuteCommmand end
-		
-		//printf("before exit\n");
 		exit(EXIT_SUCCESS);
-		//printf("after  exit\n");
 		tcsetpgrp(STDIN_FILENO, quashPID);
 		break;
 	default:
-		usleep(42042.0);
+		usleep(20000);
 		//printf("parent? is %d\n", getpid());
 		
 		setpgid(pid, pid);
@@ -326,7 +336,7 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 		//printf("after parent\n");
 		
 		break;
-	}	
+	}
 }
 
 int main(int argc, char *argv[], char *envp[])
@@ -353,11 +363,12 @@ int main(int argc, char *argv[], char *envp[])
 			
 			if (tokenCount == 0)
 			{
-				printf("running nothing\n");
+				
 			}
 			else if (!strcmp(tokens[0], "quit") || !strcmp(tokens[0], "exit") || !strcmp(tokens[0], "q"))
 			{
-				printf("Exiting Quash-2015\n\n");
+				printf(cRed "Exiting Quash-2015");
+				printf(cNor "\n\n");
 				exit(EXIT_SUCCESS);
 			}
 			else if (!strcmp(tokens[0], "cd"))
@@ -369,7 +380,12 @@ int main(int argc, char *argv[], char *envp[])
 			}
 			else if (!strcmp(tokens[0], "bg"))
 			{
-				if (tokens[1] == NULL) break;
+				if (tokens[1] == NULL)
+				{
+					cleanupInput();
+					showPrompt();
+					break;
+				}
 				
 				if (!strcmp("in", tokens[1]))
 					beginJob(tokens + 3, *(tokens + 2), 1, 2);
@@ -380,18 +396,23 @@ int main(int argc, char *argv[], char *envp[])
 			}
 			else if (!strcmp(tokens[0], "fg"))
 			{
-				printf("start of fg\n");
-				if (tokens[1] == NULL) break;
+				//printf("start of fg\n");
+				if (tokens[1] == NULL)
+				{
+					cleanupInput();
+					showPrompt();
+					break;
+				}
 				
 				int jobID = (int) atoi(tokens[1]);
 				quashJob* job = getJob(jobID, BY_ID);
-				printf("midway\n");				
+				//printf("midway\n");
 				if (job == NULL)
 					break;
 				if (job->status > 2)
 					putJobFG(job);
 				
-				printf("end of fg\n");
+				//printf("end of fg\n");
 			}
 			else if (!strcmp(tokens[0], "jobs"))
 			{
@@ -406,7 +427,7 @@ int main(int argc, char *argv[], char *envp[])
 			}*/
 			else
 			{
-				printf("Generic execution\n");
+				//printf("Generic execution\n");
 				beginJob(tokens, (char *)"STANDARD", 0, 1);
 				//printf(cRed "IDK what to do with: %s\n" cNor, tokens[0]);
 			}
