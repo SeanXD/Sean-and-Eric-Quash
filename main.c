@@ -372,6 +372,13 @@ int main(int argc, char *argv[], char *envp[])
 				printf(cNor "\n\n");
 				exit(EXIT_SUCCESS);
 			}
+			else if (!strcmp(tokens[0], "set"))
+			{
+				char theENV[4];
+				strncpy(theENV, tokens[1], sizeof(theENV));
+				setenv(theENV, tokens[1] + 5, 1337);
+				printf("%s\n\n", getenv(theENV));
+			}
 			else if (!strcmp(tokens[0], "cd"))
 			{
 				if (tokenCount == 1)
