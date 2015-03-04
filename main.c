@@ -259,6 +259,7 @@ void handleSIGCHLD(int p)
 			printf("null job\n");
 			return;
 		}
+		
 		quashJob* job = getJob(pid, BY_PID);
 
 		jobList = deleteJob(job);
