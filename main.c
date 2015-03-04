@@ -9,13 +9,13 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#define cNormal	"\x1B[0m"
+#define cNor	"\x1B[0m"
 #define cRed  	"\x1B[31m"
 #define cGre	"\x1B[32m"
 #define cYel	"\x1B[33m"
-#define cBlue	"\x1B[34m"
+#define cBlu	"\x1B[34m"
 #define cMag	"\x1B[35m"
-#define cCyan	"\x1B[36m"
+#define cCya	"\x1B[36m"
 #define cWhi	"\x1B[37m"
 #define BY_PID 	1
 #define BY_ID 	2
@@ -39,8 +39,6 @@ static char* tokens[10];
 static int tokenCount;
 static char inputString[100] = "";
 static pid_t mainPID;
-static char path[100] = "";
-static char home[100] = "";
 
 quashJob* insertJob(pid_t inPID, /*pid_t inPGID,*/ char* inName, char* inDescriptor, int inStatus)
 {
@@ -59,8 +57,10 @@ quashJob* insertJob(pid_t inPID, /*pid_t inPGID,*/ char* inName, char* inDescrip
 	if (!jobList)
 	{
 		// Empty list, so set as head
+
 		jobCount++;
 		temp->id = jobCount;
+		printf("inserted job #%d\n", temp->id);
 		return temp;
 	}
 	else
@@ -71,6 +71,7 @@ quashJob* insertJob(pid_t inPID, /*pid_t inPGID,*/ char* inName, char* inDescrip
 			cur = cur->next;
 		
 		temp->id = cur->id + 1;
+		printf("inserted job #%d\n", temp->id);
 		cur->next = temp;
 		jobCount++;
 		return jobList;
@@ -89,6 +90,7 @@ quashJob* deleteJob(quashJob* targetJob)
 	
 	if (curJob->pid == targetJob->pid)
 	{
+		printf("deleted job #%d\n", curJob->id);
 		// The head is to be deleted
 		curJob = curJob->next;
 		jobCount--;
@@ -101,6 +103,7 @@ quashJob* deleteJob(quashJob* targetJob)
 		{
 			// nextJob is to be deleted, 
 			// so use its ->next to connect the new list
+			printf("deleted job #%d\n", nextJob->id);
 			jobCount--;
 			curJob->next = nextJob->next;
 		}
@@ -110,6 +113,7 @@ quashJob* deleteJob(quashJob* targetJob)
 	return jobList;
 }
 
+// Return the job 
 quashJob* getJob(int target, int searchType)
 {
 	quashJob* cur = jobList;
@@ -137,11 +141,14 @@ quashJob* getJob(int target, int searchType)
 	return NULL;
 }
 
+// Put job in the foreground
 void putJobFG(quashJob* job) 
 {
+	//printf("put to fg\n");
 	job->status = 1;
 	tcsetpgrp(STDIN_FILENO, job->pid);
 	
+	//printf("middle of fg\n");
 	int termStatus;
 	while (!waitpid(job->pid, &termStatus, WNOHANG))
 	{
@@ -150,10 +157,11 @@ void putJobFG(quashJob* job)
 	}
 	jobList = deleteJob(job);
 	
-	printf("end of jobFG\n");
+	//printf("end of jobFG\n");
 	tcsetpgrp(STDIN_FILENO, quashPID);
 }
 
+// Put job in the background
 void putJobBG(quashJob* job)
 {
 	if (job == NULL) return;
@@ -195,7 +203,7 @@ void printJobs()
 void showPrompt() 
 {
 	currentDir = (char*) calloc(1024, sizeof(char));
-	printf("\n[Quash-2015] %s: ", getcwd(currentDir, 1024));
+	printf(cCya "\n[Quash-2015] %s: " cNor, getcwd(currentDir, 1024));
 }
 
 // Split up the messy string into tokens, and insert them into tokens[]
@@ -213,7 +221,7 @@ void tokenizeString(char inputString[100])
 // Print tokens[] for debugging purposes
 void printTokens() 
 {
-	printf(cCyan "Displaying %d tokens:\n" cNormal, tokenCount);
+	printf(cCya "Displaying %d tokens:\n" cNor, tokenCount);
 	for (int i = 0; i < tokenCount; i++)
 		printf("tokens[%d] %s\n", i, tokens[i]);
 	printf("\n");
@@ -254,11 +262,15 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 	pid = fork();
 	switch (pid) {
 	case -1:
-		printf("failure\n");
+		//printf("failure\n");
 		exit(EXIT_FAILURE);
 		break;
 	case 0:
 		//printf("child? is %d\n", getpid());
+		signal(SIGINT, 	SIG_DFL);
+                signal(SIGTSTP, SIG_DFL);
+		signal(SIGTTIN, SIG_DFL);
+                signal(SIGQUIT, SIG_DFL);
 		signal(SIGCHLD, &handleSIGCHLD);
 		
 		usleep(20000);
@@ -270,7 +282,7 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 		
 		
 		// ExecuteCommand start
-		printf("execvp starting\n");
+		//printf("execvp starting\n");
 		
 		int commandDesc;
 		
@@ -287,13 +299,13 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 			close(commandDesc);
 		}
 		if (execvp(*cmd, cmd) == -1)
-			perror("Quash2015 ERROR");
+			perror("Quash-2015 ERROR");
 		
 		// ExecuteCommmand end
 		
-		printf("before exit\n");
+		//printf("before exit\n");
 		exit(EXIT_SUCCESS);
-		printf("after  exit\n");
+		//printf("after  exit\n");
 		tcsetpgrp(STDIN_FILENO, quashPID);
 		break;
 	default:
@@ -307,11 +319,11 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 		
 		if (mode == 1)
 			putJobFG(thisJob);
-		/*
+		
 		if (mode == 2)
 			putJobBG(thisJob);
-		*/
-		printf("after parent\n");
+		
+		//printf("after parent\n");
 		
 		break;
 	}	
@@ -320,8 +332,12 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 int main(int argc, char *argv[], char *envp[])
 {
 	char input = '\0';
-	
 	quashPID = getpgrp();
+	signal(SIGINT, 	SIG_IGN);
+	signal(SIGTSTP, SIG_IGN);
+	signal(SIGTTIN, SIG_IGN);
+	signal(SIGTTOU, SIG_IGN);
+	signal(SIGQUIT, SIG_IGN);
 	signal(SIGCHLD, &handleSIGCHLD);
 	
 	showPrompt();
@@ -333,9 +349,13 @@ int main(int argc, char *argv[], char *envp[])
 		case '\n':
 			//split up tmp into tokens
 			tokenizeString(inputString);
-			printTokens();
-
-			if (!strcmp(tokens[0], "quit") || !strcmp(tokens[0], "exit") || !strcmp(tokens[0], "q"))
+			//printTokens();
+			
+			if (tokenCount == 0)
+			{
+				printf("running nothing\n");
+			}
+			else if (!strcmp(tokens[0], "quit") || !strcmp(tokens[0], "exit") || !strcmp(tokens[0], "q"))
 			{
 				printf("Exiting Quash-2015\n\n");
 				exit(EXIT_SUCCESS);
@@ -388,7 +408,7 @@ int main(int argc, char *argv[], char *envp[])
 			{
 				printf("Generic execution\n");
 				beginJob(tokens, (char *)"STANDARD", 0, 1);
-				//printf(cRed "IDK what to do with: %s\n" cNormal, tokens[0]);
+				//printf(cRed "IDK what to do with: %s\n" cNor, tokens[0]);
 			}
 			
 			cleanupInput();
