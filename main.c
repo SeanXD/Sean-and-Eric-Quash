@@ -9,39 +9,190 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#define cNormal	"\x1B[0m"
+#define cRed  	"\x1B[31m"
+#define cGre	"\x1B[32m"
+#define cYel	"\x1B[33m"
+#define cBlue	"\x1B[34m"
+#define cMag	"\x1B[35m"
+#define cCyan	"\x1B[36m"
+#define cWhi	"\x1B[37m"
+#define BY_PID 	1
+#define BY_ID 	2
 
+typedef struct job // struct that defines a job
+{ 	
+	int id;
+	char *name;
+	pid_t pid;
+	//pid_t pgid; // not yet useful
+	int status;
+	char *descriptor;
+	struct job *next;
+} quashJob;
+
+static quashJob* jobList = NULL;
+static int jobCount = 0;
+static pid_t quashPID;
 static char* currentDir;
 static char* tokens[10];
 static int tokenCount;
 static char inputString[100] = "";
 static pid_t mainPID;
-
-static int numActiveJobs = 0;
-
 static char path[100] = "";
 static char home[100] = "";
 
-#define cNormal		"\x1B[0m"
-#define cRed  		"\x1B[31m"
-#define cGreen		"\x1B[32m"
-#define cYellow		"\x1B[33m"
-#define cBlue		"\x1B[34m"
-#define cMagenta	"\x1B[35m"
-#define cCyan		"\x1B[36m"
-#define cWhite		"\x1B[37m"
+quashJob* insertJob(pid_t inPID, /*pid_t inPGID,*/ char* inName, char* inDescriptor, int inStatus)
+{
+	usleep(420);
+	quashJob* temp = (quashJob*)malloc(sizeof(quashJob));
+	
+	temp->name = (char*) malloc(sizeof(inName));
+	temp->name = strcpy(temp->name, inName);
+	temp->pid = inPID;
+	//temp->pgid = inPGID;
+	temp->descriptor = (char*) malloc(sizeof(inDescriptor));
+	temp->descriptor = strcpy(temp->descriptor, inDescriptor);
+	
+	temp->status = inStatus;
+	
+	temp->next = NULL;
+	
+	if (!jobList)
+	{
+		// Empty list, so set as head
+		jobCount++;
+		temp->id = jobCount;
+		return temp;
+	}
+	else
+	{
+		// Insert at the end of the existing list
+		quashJob* cur = jobList;
+		while (cur->next)
+			cur = cur->next;
+		
+		temp->id = cur->id + 1;
+		cur->next = temp;
+		jobCount++;
+		return jobList;
+	}
+}
+
+quashJob* deleteJob(quashJob* targetJob)
+{
+	if (!jobList) return NULL;
+	
+	quashJob* curJob;
+	quashJob* nextJob;
+	
+	curJob = jobList;
+	nextJob = jobList->next;
+	
+	if (curJob->pid == targetJob->pid)
+	{
+		// The head is to be deleted
+		curJob = curJob->next;
+		jobCount--;
+		return curJob;
+	}
+	
+	while (nextJob)
+	{
+		if (nextJob->pid == targetJob->pid)
+		{
+			// nextJob is to be deleted, 
+			// so use its ->next to connect the new list
+			jobCount--;
+			curJob->next = nextJob->next;
+		}
+		curJob = nextJob;
+		nextJob = nextJob->next;
+	}
+	return jobList;
+}
+
+quashJob* getJob(int target, int searchType)
+{
+	quashJob* cur = jobList;
+	
+	switch (searchType) {
+	case BY_PID:	
+		while (cur)
+		{
+			if (cur->pid == target)
+				return cur;
+			else
+				cur = cur->next;
+		}
+		break;
+	case BY_ID:
+		while (cur)
+		{
+			if (cur->id == target)
+				return cur;
+			else
+				cur = cur->next;
+		}
+		break;
+	}
+	return NULL;
+}
+
+void putJobFG(quashJob* job) 
+{
+	job->status = 1;
+	tcsetpgrp(STDIN_FILENO, job->pid);
+	
+	int termStatus;
+	/*while (!waitpid(job->pid, &termStatus, WNOHANG))
+	{
+		if (job->status == 
+	*/
+	printf("end of jobFG\n");
+	tcsetpgrp(STDIN_FILENO, quashPID);
+}
+
+void putJobBG(quashJob* job)
+{
+	
+}
+
+// Print the list of jobs
+void printJobs() 
+{
+	printf("Current jobs:\n");
+	printf("%-5s %-20s %-8s %-12s %-12s \n",
+	       "Job", "Name", "PID", "Descriptor", "Status");
+	quashJob* cur = jobList;
+	
+	char status[20] = "";
+	
+	while (cur)
+	{
+		if (cur->status == 1)
+			strcpy(status, "Foreground");
+		else
+			strcpy(status, "Background");
+		
+		printf("%-5d %-20s %-8d %-12s %-12s \n",
+		       cur->id, cur->name, cur->pid, cur->descriptor, status);
+		cur = cur->next;
+	}
+	printf("\n");
+}
 
 //Display the current user? and directory
-void showPrompt()
+void showPrompt() 
 {
 	currentDir = (char*) calloc(1024, sizeof(char));
 	printf("\n[Quash-2015] %s: ", getcwd(currentDir, 1024));
 }
 
 // Split up the messy string into tokens, and insert them into tokens[]
-void tokenizeString(char inputString[100])
+void tokenizeString(char inputString[100]) 
 {
 	char* currentToken = strtok(inputString, " ");
-
 	while (currentToken)
 	{
 		tokens[tokenCount] = currentToken;
@@ -51,46 +202,92 @@ void tokenizeString(char inputString[100])
 }
 
 // Print tokens[] for debugging purposes
-void printTokens()
+void printTokens() 
 {
 	printf(cCyan "Displaying %d tokens:\n" cNormal, tokenCount);
 	for (int i = 0; i < tokenCount; i++)
 		printf("tokens[%d] %s\n", i, tokens[i]);
+	printf("\n");
 }
 
 // Reset the token count and empty the input string
-void cleanupInput()
+void cleanupInput() 
 {
 	tokenCount = 0;
 	bzero(inputString, sizeof(inputString));
 }
 
+// modes:	1	foreground
+//		2	background
 void beginJob(char *cmd[], char *file, int desc, int mode)
 {
-	int pid;
+	//printf("inside beginJob\n");
+
+	pid_t pid;
 	pid = fork();
 	switch (pid) {
 	case -1:
+		printf("failure\n");
 		exit(EXIT_FAILURE);
 		break;
 	case 0:
-		setpgid(0, 0);
-		if (mode == 'f')
-				tcsetpgrp(STDIN_FILENO, getpid());
-		else if (mode == 'b')
-				 printf("[%d] %d\n", numActiveJobs++, (int)getpid());
-		//execute command
-		exit(EXIT_SUCCESS);
+		//printf("child? is %d\n", getpid());
+		//usleep(20000);
+		
+		setpgrp();
+		if (mode == 1)
+			tcsetpgrp(quashPID, getpid());
+		if (mode == 2)
+			printf("[%d] %d\n", ++jobCount, (int)getpid());
+		
+		// ExecuteCommand
+		printf("execvp starting\n");
+		
+		int commandDesc;
+		
+		if(desc == STDIN_FILENO)
+		{
+			commandDesc = open(file, O_RDONLY, 0600);
+			dup2(commandDesc, STDIN_FILENO);
+			close(commandDesc);
+		}
+		if(desc == STDOUT_FILENO)
+		{
+			commandDesc = open(file, O_CREAT | O_TRUNC | O_WRONLY, 0600);
+			dup2(commandDesc, STDOUT_FILENO);
+			close(commandDesc);
+		}
+		//if (execvp(*cmd, cmd) == -1)
+		//	perror("Quash2015 ERROR");
+		
+		printf("after execvp\n");
+		//exit(EXIT_SUCCESS);
 		break;
 	default:
+		//usleep(420420);
+		//printf("parent? is %d\n", getpid());
+		setpgid(pid, pid);
 		
+		jobList = insertJob(pid, *(cmd), file, mode);
+		quashJob* thisJob = getJob(pid, BY_PID);
+		
+		if (mode == 1)
+			putJobFG(thisJob);
+		if (mode == 2)
+			putJobBG(thisJob);
+		
+		printf("after parent\n");
 		break;
-	}
+	}	
 }
+
+
 
 int main(int argc, char *argv[], char *envp[])
 {
 	char input = '\0';
+	
+	quashPID = getpgrp();
 	
 	showPrompt();
 	while(input != EOF)
@@ -98,79 +295,82 @@ int main(int argc, char *argv[], char *envp[])
 		input = getchar();
 		switch(input)
 		{
-			case '\n':
-				//split up tmp into tokens
-				tokenizeString(inputString);
-				printTokens();
+		case '\n':
+			//split up tmp into tokens
+			tokenizeString(inputString);
+			printTokens();
 
-				if (!strcmp(tokens[0], "ls") || !strcmp(tokens[0], "dir"))
-				{
-					mainPID = fork();
-					if (mainPID == 0)
-					{
-						execve("/bin/ls", argv, envp);
-					}
-					else
-						wait(NULL);
-				}
-				else if (!strcmp(tokens[0], "quit") || !strcmp(tokens[0], "exit") || !strcmp(tokens[0], "q"))
-				{
-					printf("Exiting Quash-2015\n\n");
-					exit(EXIT_SUCCESS);
-				}
-				else if (!strcmp(tokens[0], "cd"))
-				{
-					if (tokenCount == 1)
-						chdir(getenv("HOME"));
-					else if (chdir(tokens[1]) == -1)
-						printf("Invalid Path\n");
-				}
-				else if (!strcmp(tokens[0], "bg"))
-				{
-					if (tokens[1] == NULL)
-						beginJob(tokens, (char *)"STANDARD", 0, 'f');
-					if (!strcmp("in", tokens[1]))
-						beginJob(tokens + 3, *(tokens + 2), 1, 'b');
-					else if (!strcmp("out", tokens[1]))
-						beginJob(tokens + 3, *(tokens + 2), 2, 'b');
-					else
-						beginJob(tokens + 1, (char *)"STANDARD", 0, 'b');
-				}
-				else if (!strcmp(tokens[0], "fg"))
-				{
-					
-				}
-				else if (!strcmp(tokens[0], "jobs"))
-				{
-					
-				}
-				else if (tokenCount == 3)
-				{
-					if (!strcmp(tokens[1], "|"))
-					{
-						
-					}
-				}			
-				else if (tokenCount > 3)
-				{
-					if (strcmp(tokens[tokenCount - 2], "|") == 0 )
-					{
-						
-					}
-				}
+			if (!strcmp(tokens[0], "ls") || !strcmp(tokens[0], "dir"))
+			{
+				mainPID = fork();
+				if (mainPID == 0)
+					execve("/bin/ls", argv, envp);
 				else
+					usleep(4204.20);
+			}
+			else if (!strcmp(tokens[0], "quit") || !strcmp(tokens[0], "exit") || !strcmp(tokens[0], "q"))
+			{
+				printf("Exiting Quash-2015\n\n");
+				exit(EXIT_SUCCESS);
+			}
+			else if (!strcmp(tokens[0], "cd"))
+			{
+				if (tokenCount == 1)
+					chdir(getenv("HOME"));
+				else if (chdir(tokens[1]) == -1)
+					printf("Invalid Path\n");
+			}
+			else if (!strcmp(tokens[0], "bg"))
+			{
+				if (tokens[1] == NULL) break;
+				
+				if (!strcmp("in", tokens[1]))
+					beginJob(tokens + 3, *(tokens + 2), 1, 2);
+				else if (!strcmp("out", tokens[1]))
+					beginJob(tokens + 3, *(tokens + 2), 2, 2);
+				else
+					beginJob(tokens + 1, (char *)"STANDARD", 0, 2);
+			}
+			else if (!strcmp(tokens[0], "fg"))
+			{
+				printf("start of fg\n");
+				if (tokens[1] == NULL) break;
+				
+				int jobID = (int) atoi(tokens[1]);
+				quashJob* job = getJob(jobID, BY_ID);
+				printf("midway\n");				
+				if (job == NULL)
+					break;
+				if (job->status > 2)
+					putJobFG(job);
+				
+				printf("end of fg\n");
+			}
+			else if (!strcmp(tokens[0], "jobs"))
+			{
+				printJobs();
+			}
+			/*else if (tokenCount > 3)
+			{
+				if (strcmp(tokens[tokenCount - 2], "|") == 0 )
 				{
-					beginJob(tokens, (char *)"STANDARD", 0, 'f');
-					//printf(cRed "IDK what to do with: %s\n" cNormal, tokens[0]);
+					
 				}
-				
-				cleanupInput();
-				showPrompt();
-				break;
-				
-			default: 
-				strncat(inputString, &input, 1);
-				break;
+			}*/
+			else
+			{
+				printf("Generic execution\n");
+				beginJob(tokens, (char *)"STANDARD", 0, 1);
+				//printf(cRed "IDK what to do with: %s\n" cNormal, tokens[0]);
+			}
+			
+			cleanupInput();
+			showPrompt();
+			break;
+			
+		default: 
+			strncat(inputString, &input, 1);
+			break;
 		}
 	}
 	
