@@ -174,7 +174,7 @@ void putJobBG(quashJob* job)
 }
 
 // Print the list of jobs
-void printJobs() 
+void printJobs()
 {
 	if (!jobList)
 	{
@@ -360,7 +360,8 @@ int main(int argc, char *argv[], char *envp[])
 		case '\n':
 			//split up tmp into tokens
 			tokenizeString(inputString);
-			//printTokens();
+			printTokens();
+			printf("token count %d\n", tokenCount);
 			
 			if (tokenCount == 0)
 			{
@@ -386,13 +387,20 @@ int main(int argc, char *argv[], char *envp[])
 				else if (chdir(tokens[1]) == -1)
 					printf("Invalid Path\n");
 			}
-			else if (!strcmp(tokens[0], "bg"))
+			else if (!strcmp(tokens[0], "bg") || !strcmp(tokens[tokenCount-1], "&"))
 			{
 				if (tokens[1] == NULL)
 				{
 					cleanupInput();
 					showPrompt();
 					break;
+				}
+				
+				// Ignore the trailing &?
+				if (!strcmp(tokens[tokenCount-1], "&"))
+				{
+					tokens[tokenCount-1] = NULL;
+					tokenCount--;
 				}
 				
 				if (!strcmp("in", tokens[1]))
