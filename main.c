@@ -42,6 +42,7 @@ static char* second[10];
 static int tokenCount;
 static int firstSize;
 static int secondSize;
+static int pipeLine;
 
 static char inputString[100] = "";
 static pid_t mainPID;
@@ -374,20 +375,24 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 	}
 }
 
-void separateCommands(int line)
+void separateCommands()
 {
-	if (line < 0) return;
+	if (pipeLine < 0) return;
 	
-	for (firstSize; firstSize < line; firstSize++)
+	for (firstSize; firstSize < pipeLine; firstSize++)
 		first[firstSize] = tokens[firstSize];
 	
-	for (int b = line+1; b < tokenCount; b++)
+	for (int b = pipeLine+1; b < tokenCount; b++)
 	{
 		second[secondSize] = tokens[b];
 		secondSize++;
 	}
 }
 
+void executePipes()
+{
+	
+}
 int main(int argc, char *argv[], char *envp[])
 {
 	char input = '\0';
@@ -410,16 +415,11 @@ int main(int argc, char *argv[], char *envp[])
 			tokenizeString(inputString);
 			//printTokens();
 			
-			int pipeLine;
 			pipeLine = -1;
 			
 			for (int i = 0; i < tokenCount; i++)
 				if (!strcmp(tokens[i], "|"))
 					pipeLine = i;
-			
-			separateCommands(pipeLine);
-			printFirst();
-			printSecond();
 			
 			if (tokenCount == 0)
 			{
@@ -501,13 +501,15 @@ int main(int argc, char *argv[], char *envp[])
 			{
 				printJobs();
 			}
-			/*else if (tokenCount > 3)
+			else if (pipeLine > 0)
 			{
-				if (strcmp(tokens[tokenCount - 2], "|") == 0 )
-				{
-					
-				}
-			}*/
+				printf("\nattempting to pipe from %d\n", pipeLine);
+				separateCommands();
+				printFirst();
+				printSecond();
+				
+				executePipes();
+			}
 			else
 			{
 				//printf("Generic execution\n");
