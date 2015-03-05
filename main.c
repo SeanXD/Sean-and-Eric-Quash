@@ -381,7 +381,6 @@ int main(int argc, char *argv[], char *envp[])
 					printf("Invalid  Environment Variable\n");
 				else
 					setenv(theENV, tokens[1] + 5, 1337);
-				setenv(theENV, tokens[1] + 5, 1337);
 				//printf("%s\n\n", getenv(theENV));
 			}
 			else if (!strcmp(tokens[0], "cd"))
