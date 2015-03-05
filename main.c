@@ -35,8 +35,14 @@ static quashJob* jobList = NULL;
 static int jobCount = 0;
 static pid_t quashPID;
 static char* currentDir;
-static char* tokens[10];
+
+static char* tokens[20];
+static char* first[10];
+static char* second[10];
 static int tokenCount;
+static int firstSize;
+static int secondSize;
+
 static char inputString[100] = "";
 static pid_t mainPID;
 
@@ -230,7 +236,22 @@ void printTokens()
 		printf("tokens[%d] %s\n", i, tokens[i]);
 	printf("\n");
 }
+void printFirst()
+{
+	printf(cCya "First %d:\n" cNor, firstSize);
+	for (int i = 0; i < firstSize; i++)
+		printf("first[%d] %s\n", i, first[i]);
+	printf("\n");
+}
 
+void printSecond()
+{
+	printf(cCya "Second %d:\n" cNor, secondSize);
+	for (int i = 0; i < secondSize; i++)
+		printf("second[%d] %s\n", i, second[i]);
+	printf("\n");
+}	
+	
 // Reset the token count and empty the input string
 void cleanupInput() 
 {
@@ -240,6 +261,19 @@ void cleanupInput()
 		tokens[tokenCount] = NULL;
 		tokenCount--;
 	}
+	while (firstSize > 0)
+	{
+		//printf("deleting tokens[%d]\n", tokenCount);
+		first[firstSize] = NULL;
+		firstSize--;
+	}
+	while (secondSize > 0)
+	{
+		//printf("deleting tokens[%d]\n", tokenCount);
+		second[secondSize] = NULL;
+		secondSize--;
+	}
+	
 	//printf("%d tokens leftover\n", tokenCount);
 	bzero(inputString, sizeof(inputString));
 }
@@ -251,12 +285,12 @@ void handleSIGCHLD(int p)
 	pid = waitpid(WAIT_ANY, &termination, WUNTRACED | WNOHANG);
 	if (pid > 0)
 	{
-		printf("SIGCHLD's pid: %d\n", pid);
+		//printf("SIGCHLD's pid: %d\n", pid);
 		quashJob* thisJob = getJob(pid, BY_PID);
 		
 		if (thisJob == NULL)
 		{
-			printf("null job\n");
+			//printf("null job\n");
 			return;
 		}
 		
@@ -340,6 +374,20 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 	}
 }
 
+void separateCommands(int line)
+{
+	if (line < 0) return;
+	
+	for (firstSize; firstSize < line; firstSize++)
+		first[firstSize] = tokens[firstSize];
+	
+	for (int b = line+1; b < tokenCount; b++)
+	{
+		second[secondSize] = tokens[b];
+		secondSize++;
+	}
+}
+
 int main(int argc, char *argv[], char *envp[])
 {
 	char input = '\0';
@@ -361,11 +409,21 @@ int main(int argc, char *argv[], char *envp[])
 			//split up tmp into tokens
 			tokenizeString(inputString);
 			//printTokens();
-			//printf("token count %d\n", tokenCount);
+			
+			int pipeLine;
+			pipeLine = -1;
+			
+			for (int i = 0; i < tokenCount; i++)
+				if (!strcmp(tokens[i], "|"))
+					pipeLine = i;
+			
+			separateCommands(pipeLine);
+			printFirst();
+			printSecond();
 			
 			if (tokenCount == 0)
 			{
-				// do nothing to prevent seg. fault	
+				// do nothing to prevent seg. fault
 			}
 			else if (!strcmp(tokens[0], "quit") || !strcmp(tokens[0], "exit") || !strcmp(tokens[0], "q"))
 			{
@@ -381,7 +439,6 @@ int main(int argc, char *argv[], char *envp[])
 					printf("Invalid  Environment Variable\n");
 				else
 					setenv(theENV, tokens[1] + 5, 1337);
-				//printf("%s\n\n", getenv(theENV));
 			}
 			else if (!strcmp(tokens[0], "cd"))
 			{
