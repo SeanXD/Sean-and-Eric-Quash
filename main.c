@@ -360,8 +360,8 @@ int main(int argc, char *argv[], char *envp[])
 		case '\n':
 			//split up tmp into tokens
 			tokenizeString(inputString);
-			printTokens();
-			printf("token count %d\n", tokenCount);
+			//printTokens();
+			//printf("token count %d\n", tokenCount);
 			
 			if (tokenCount == 0)
 			{
@@ -381,6 +381,8 @@ int main(int argc, char *argv[], char *envp[])
 					printf("Invalid  Environment Variable\n");
 				else
 					setenv(theENV, tokens[1] + 5, 1337);
+				setenv(theENV, tokens[1] + 5, 1337);
+				//printf("%s\n\n", getenv(theENV));
 			}
 			else if (!strcmp(tokens[0], "cd"))
 			{
@@ -401,19 +403,23 @@ int main(int argc, char *argv[], char *envp[])
 					break;
 				}
 				
-				// Ignore the trailing &?
+				int offset = 0;
+				
+				// Did this execute from a trailing ampersand?
 				if (!strcmp(tokens[tokenCount-1], "&"))
 				{
+					// No "bg" as first token, so look at -1 index
+					offset = -1;
 					tokens[tokenCount-1] = NULL;
 					tokenCount--;
 				}
 				
-				if (!strcmp("in", tokens[1]))
-					beginJob(tokens + 3, *(tokens + 2), 1, 2);
-				else if (!strcmp("out", tokens[1]))
-					beginJob(tokens + 3, *(tokens + 2), 2, 2);
+				if (!strcmp("in", tokens[1 + offset]))
+					beginJob(tokens + 3 + offset, *(tokens + 2 + offset), 1, 2);
+				else if (!strcmp("out", tokens[1 + offset]))
+					beginJob(tokens + 3 + offset, *(tokens + 2 + offset), 2, 2);
 				else
-					beginJob(tokens + 1, (char *)"STANDARD", 0, 2);
+					beginJob(tokens + 1 + offset, (char *)"STANDARD", 0, 2);
 			}
 			else if (!strcmp(tokens[0], "fg"))
 			{
