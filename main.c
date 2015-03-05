@@ -365,7 +365,7 @@ int main(int argc, char *argv[], char *envp[])
 			
 			if (tokenCount == 0)
 			{
-				
+				// do nothing to prevent seg. fault	
 			}
 			else if (!strcmp(tokens[0], "quit") || !strcmp(tokens[0], "exit") || !strcmp(tokens[0], "q"))
 			{
@@ -377,13 +377,18 @@ int main(int argc, char *argv[], char *envp[])
 			{
 				char theENV[4];
 				strncpy(theENV, tokens[1], sizeof(theENV));
-				setenv(theENV, tokens[1] + 5, 1337);
-				printf("%s\n\n", getenv(theENV));
+				if (strcmp(theENV, "HOME") && strcmp(theENV, "PATH"))
+					printf("Invalid  Environment Variable\n");
+				else
+					setenv(theENV, tokens[1] + 5, 1337);
 			}
 			else if (!strcmp(tokens[0], "cd"))
 			{
 				if (tokenCount == 1)
-					chdir(getenv("HOME"));
+				{
+					if (chdir(getenv("HOME")) == -1)
+						printf("HOME: Invalid Path\n");
+				}
 				else if (chdir(tokens[1]) == -1)
 					printf("Invalid Path\n");
 			}
