@@ -37,12 +37,11 @@ static pid_t quashPID;
 static char* currentDir;
 
 static char* tokens[20];
-static char* first[10];
-static char* second[10];
+static char* first[50];
+static char* second[50];
 static int tokenCount;
 static int firstSize;
 static int secondSize;
-static int pipeLine;
 
 static char inputString[100] = "";
 static pid_t mainPID;
@@ -375,24 +374,58 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 	}
 }
 
-void separateCommands()
+void thePipeLine()
 {
-	if (pipeLine < 0) return;
+	char    line[1000];
+    FILE    *fpin, *fpout;
+    char arg1[50], arg2[50];
+    int i;
+printf("ENTERING PIP FOR\n");
+	   for(i = 0; first[i]; i++)
+	   {
+		   strcat(arg1, first[i]);
+		   strcat(arg1, " ");
+	   }
+	   printf("-%s-\n\n", arg1);
+	   for(i = 0; second[i]; i++)
+	   {
+		   strcat(arg2, second[i]);
+		   strcat(arg2, " ");
+	   }
+	   printf("-%s-\n\n", arg2);
+
+    if ((fpin = popen(arg1, "r")) == NULL)
+        printf("can't open %s", arg1);
+
+    if ((fpout = popen(arg2, "w")) == NULL)
+        printf("popen error");
+
+
+    while (fgets(line, 1000, fpin) != NULL) {
+        if (fputs(line, fpout) == EOF)
+            printf("fputs error to pipe");
+    }
+    if (ferror(fpin))
+        printf("fgets error");
+    if (pclose(fpout) == -1)
+       printf("");
+}
+
+void separateCommands(int line)
+{
+	if (line < 0) return;
 	
-	for (firstSize; firstSize < pipeLine; firstSize++)
+	for (firstSize; firstSize < line; firstSize++)
 		first[firstSize] = tokens[firstSize];
 	
-	for (int b = pipeLine+1; b < tokenCount; b++)
+	for (int b = line+1; b < tokenCount; b++)
 	{
 		second[secondSize] = tokens[b];
 		secondSize++;
 	}
+	thePipeLine();
 }
 
-void executePipes()
-{
-	
-}
 int main(int argc, char *argv[], char *envp[])
 {
 	char input = '\0';
@@ -415,13 +448,27 @@ int main(int argc, char *argv[], char *envp[])
 			tokenizeString(inputString);
 			//printTokens();
 			
+			int pipeLine;
 			pipeLine = -1;
 			
+			/*for (int i = 0; i < 50; i ++)
+			{
+				first[i] = '\0';
+				second[i] = '\0';
+			}*/
+			
 			for (int i = 0; i < tokenCount; i++)
+			{
 				if (!strcmp(tokens[i], "|"))
 					pipeLine = i;
-			
-			if (tokenCount == 0)
+			}
+			if (pipeLine > -1)
+			{
+				separateCommands(pipeLine);
+				//printFirst();
+				//printSecond();
+			}
+			else if (tokenCount == 0)
 			{
 				// do nothing to prevent seg. fault
 			}
@@ -501,15 +548,13 @@ int main(int argc, char *argv[], char *envp[])
 			{
 				printJobs();
 			}
-			else if (pipeLine > 0)
+			/*else if (tokenCount > 3)
 			{
-				printf("\nattempting to pipe from %d\n", pipeLine);
-				separateCommands();
-				printFirst();
-				printSecond();
-				
-				executePipes();
-			}
+				if (strcmp(tokens[tokenCount - 2], "|") == 0 )
+				{
+					
+				}
+			}*/
 			else
 			{
 				//printf("Generic execution\n");
