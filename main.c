@@ -19,6 +19,8 @@
 #define cWhi	"\x1B[37m"
 #define BY_PID 	1
 #define BY_ID 	2
+#define	READ	0
+#define WRITE	1
 
 typedef struct job // struct that defines a job
 { 	
@@ -48,7 +50,7 @@ static pid_t mainPID;
 
 quashJob* insertJob(pid_t inPID, /*pid_t inPGID,*/ char* inName, char* inDescriptor, int inStatus)
 {
-	usleep(420);
+	//usleep(420);
 	quashJob* temp = (quashJob*)malloc(sizeof(quashJob));
 	
 	temp->name = (char*) malloc(sizeof(inName));
@@ -310,26 +312,19 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 	pid_t pid;
 	pid = fork();
 	switch (pid) {
-	case -1:
-		//printf("failure\n");
-		exit(EXIT_FAILURE);
-		break;
 	case 0:
-		//printf("child? is %d\n", getpid());
 		signal(SIGINT, 	SIG_DFL);
                 signal(SIGTSTP, SIG_DFL);
 		signal(SIGTTIN, SIG_DFL);
                 signal(SIGQUIT, SIG_DFL);
 		signal(SIGCHLD, &handleSIGCHLD);
 		
-		//usleep(20000);
 		setpgrp();
 		if (mode == 1)
 			tcsetpgrp(quashPID, getpid());
 		if (mode == 2)
 			printf("Running %d-%d in the background\n", ++jobCount, (int)getpid());
 		
-		// ExecuteCommand start
 		int commandDesc;
 		
 		if(desc == STDIN_FILENO)
@@ -345,72 +340,64 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 			close(commandDesc);
 		}
 		if (execvp(*cmd, cmd) == -1)
-		{
-			printf(cRed "Failed to run: %s\n" cNor, *cmd);
-			//perror("Quash-2015 ERROR");
-		}
+			printf(cRed "Failed to execute: %s\n" cNor, *cmd);
+		
 		
 		exit(EXIT_SUCCESS);
 		tcsetpgrp(STDIN_FILENO, quashPID);
 		break;
 	default:
 		usleep(20000);
-		//printf("parent? is %d\n", getpid());
 		
 		setpgid(pid, pid);
 		
 		jobList = insertJob(pid, *(cmd), file, mode);
 		quashJob* thisJob = getJob(pid, BY_PID);
 		
-		if (mode == 1)
-			putJobFG(thisJob);
-		
-		if (mode == 2)
-			putJobBG(thisJob);
-		
-		//printf("after parent\n");
+		if (mode == 1) putJobFG(thisJob);
+		if (mode == 2) putJobBG(thisJob);
 		
 		break;
 	}
 }
 
-void thePipeLine()
+// Take arguments from first[] and second[] to execute piped processes
+void executePipe()
 {
-	char    line[1000];
-    FILE    *fpin, *fpout;
-    char arg1[50], arg2[50];
-    int i;
-printf("ENTERING PIP FOR\n");
-	   for(i = 0; first[i]; i++)
-	   {
-		   strcat(arg1, first[i]);
-		   strcat(arg1, " ");
-	   }
-	   printf("-%s-\n\n", arg1);
-	   for(i = 0; second[i]; i++)
-	   {
-		   strcat(arg2, second[i]);
-		   strcat(arg2, " ");
-	   }
-	   printf("-%s-\n\n", arg2);
+	int desc[2];
+	pipe(desc);
 
-    if ((fpin = popen(arg1, "r")) == NULL)
-        printf("can't open %s", arg1);
-
-    if ((fpout = popen(arg2, "w")) == NULL)
-        printf("popen error");
-
-
-    while (fgets(line, 1000, fpin) != NULL) {
-        if (fputs(line, fpout) == EOF)
-            printf("fputs error to pipe");
-    }
-    if (ferror(fpin))
-        printf("fgets error");
-    if (pclose(fpout) == -1)
-       printf("");
+	int pid = fork();
+	if (pid == 0)
+	{
+		close(desc[1]);
+		dup2(desc[READ],STDIN_FILENO);
+		if (execvp(second[0], second) < 0)
+		{	
+			printf(cRed "Invalid executable\n" cNor);
+			_exit(0);
+		}
+	}
+	
+	int pid2 = fork();
+	if (pid2 == 0)
+	{
+		dup2(desc[WRITE],STDOUT_FILENO);
+		if (execvp(first[0], first) < 0)
+		{	
+			printf(cRed "Invalid executable\n" cNor);
+			_exit(0);
+		}
+	}
+	
+	close(desc[READ]);
+	close(desc[WRITE]);
+	
+	int status;
+	waitpid(pid, &status, 0);
 }
 
+// Split up tokens[] into first[] and second[] for executePipe() to use
 void separateCommands(int line)
 {
 	if (line < 0) return;
@@ -423,7 +410,6 @@ void separateCommands(int line)
 		second[secondSize] = tokens[b];
 		secondSize++;
 	}
-	thePipeLine();
 }
 
 int main(int argc, char *argv[], char *envp[])
@@ -444,29 +430,30 @@ int main(int argc, char *argv[], char *envp[])
 		switch(input)
 		{
 		case '\n':
-			//split up tmp into tokens
 			tokenizeString(inputString);
-			//printTokens();
 			
 			int pipeLine;
-			pipeLine = -1;
+			int rightArrow;
+			int leftArrow;
+			pipeLine = rightArrow = leftArrow = -1;
 			
-			/*for (int i = 0; i < 50; i ++)
-			{
-				first[i] = '\0';
-				second[i] = '\0';
-			}*/
-			
+			// Find the index of |, < or >
 			for (int i = 0; i < tokenCount; i++)
-			{
 				if (!strcmp(tokens[i], "|"))
 					pipeLine = i;
-			}
+				else if (!strcmp(tokens[i], "<"))
+					leftArrow = i;
+				else if (!strcmp(tokens[i], ">"))
+					rightArrow = i;
+			
+			printf("pipe at  %d\n", pipeLine);
+			printf("left at  %d\n", leftArrow);
+			printf("right at %d\n", rightArrow);
+			
 			if (pipeLine > -1)
 			{
 				separateCommands(pipeLine);
-				//printFirst();
-				//printSecond();
+				executePipe();
 			}
 			else if (tokenCount == 0)
 			{
@@ -526,7 +513,6 @@ int main(int argc, char *argv[], char *envp[])
 			}
 			else if (!strcmp(tokens[0], "fg"))
 			{
-				//printf("start of fg\n");
 				if (tokens[1] == NULL)
 				{
 					cleanupInput();
@@ -536,30 +522,20 @@ int main(int argc, char *argv[], char *envp[])
 				
 				int jobID = (int) atoi(tokens[1]);
 				quashJob* job = getJob(jobID, BY_ID);
-				//printf("midway\n");
+				
 				if (job == NULL)
 					break;
 				if (job->status > 2)
 					putJobFG(job);
-				
-				//printf("end of fg\n");
 			}
 			else if (!strcmp(tokens[0], "jobs"))
 			{
 				printJobs();
 			}
-			/*else if (tokenCount > 3)
-			{
-				if (strcmp(tokens[tokenCount - 2], "|") == 0 )
-				{
-					
-				}
-			}*/
 			else
 			{
-				//printf("Generic execution\n");
+				// Generic execution
 				beginJob(tokens, (char *)"STANDARD", 0, 1);
-				//printf(cRed "IDK what to do with: %s\n" cNor, tokens[0]);
 			}
 			
 			cleanupInput();
