@@ -11,23 +11,18 @@
 #include <fcntl.h>
 #define cNor	"\x1B[0m"
 #define cRed  	"\x1B[31m"
-#define cGre	"\x1B[32m"
-#define cYel	"\x1B[33m"
-#define cBlu	"\x1B[34m"
-#define cMag	"\x1B[35m"
 #define cCya	"\x1B[36m"
-#define cWhi	"\x1B[37m"
 #define BY_PID 	1
 #define BY_ID 	2
 #define	READ	0
 #define WRITE	1
 
-typedef struct job // struct that defines a job
-{ 	
+typedef struct job
+{
 	int id;
 	char *name;
 	pid_t pid;
-	int status; 	//1 fg, 2 bg, 3 sus, 4 waiting
+	int status;
 	char *descriptor;
 	struct job *next;
 } quashJob;
@@ -48,7 +43,7 @@ static char inputString[100] = "";
 static pid_t mainPID;
 
 // Insert a job from the linked list
-quashJob* insertJob(pid_t inPID, /*pid_t inPGID,*/ char* inName, char* inDescriptor, int inStatus)
+quashJob* insertJob(pid_t inPID, char* inName, char* inDescriptor, int inStatus)
 {
 	quashJob* temp = (quashJob*)malloc(sizeof(quashJob));
 	
@@ -65,7 +60,6 @@ quashJob* insertJob(pid_t inPID, /*pid_t inPGID,*/ char* inName, char* inDescrip
 		// Empty list, so set as head
 		jobCount++;
 		temp->id = jobCount;
-		//printf("inserted job #%d\n", temp->id);
 		return temp;
 	}
 	else
@@ -76,7 +70,6 @@ quashJob* insertJob(pid_t inPID, /*pid_t inPGID,*/ char* inName, char* inDescrip
 			cur = cur->next;
 		
 		temp->id = cur->id + 1;
-		//printf("inserted job #%d\n", temp->id);
 		cur->next = temp;
 		jobCount++;
 		return jobList;
@@ -150,7 +143,7 @@ void putJobFG(quashJob* job)
 {
 	job->status = 1;
 	tcsetpgrp(STDIN_FILENO, job->pid);
-	
+
 	int termStatus;
 	while (!waitpid(job->pid, &termStatus, WNOHANG))
 	{
@@ -201,14 +194,14 @@ void printJobs()
 }
 
 // Display Quash's prompt
-void showPrompt() 
+void showPrompt()
 {
 	currentDir = (char*) calloc(1024, sizeof(char));
 	printf(cCya "\n[Quash-2015] %s: " cNor, getcwd(currentDir, 1024));
 }
 
 // Split up the messy string into tokens, and insert them into tokens[]
-void tokenizeString(char inputString[100]) 
+void tokenizeString(char inputString[100])
 {
 	char* currentToken = strtok(inputString, " ");
 	while (currentToken)
@@ -227,6 +220,7 @@ void printTokens()
 		printf("tokens[%d] %s\n", i, tokens[i]);
 	printf("\n");
 }
+
 // Print first[] for debugging
 void printFirst()
 {
@@ -245,24 +239,16 @@ void printSecond()
 	printf("\n");
 }	
 	
-// Reset the token count and empty the input string
+// Reset the input arrays and strings
 void cleanupInput() 
 {
-	while (tokenCount > 0)
-	{
+	// Empty the tokens, first and second arrays
+	for (tokenCount; tokenCount > 0; tokenCount--)
 		tokens[tokenCount] = NULL;
-		tokenCount--;
-	}
-	while (firstSize > 0)
-	{
+	for (firstSize; firstSize > 0; firstSize--)
 		first[firstSize] = NULL;
-		firstSize--;
-	}
-	while (secondSize > 0)
-	{
+	for (secondSize; secondSize > 0; secondSize--)
 		second[secondSize] = NULL;
-		secondSize--;
-	}
 	
 	bzero(inputString, sizeof(inputString));
 }
@@ -321,15 +307,15 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 			dup2(commandDesc, STDOUT_FILENO);
 			close(commandDesc);
 		}
+		
 		if (execvp(*cmd, cmd) == -1)
 			printf(cRed "Failed to execute: %s\n" cNor, *cmd);
-		
-		
+				
 		exit(EXIT_SUCCESS);
 		tcsetpgrp(STDIN_FILENO, quashPID);
 		break;
 	default:
-		usleep(20000);
+		usleep(10000);
 		
 		setpgid(pid, pid);
 		
@@ -340,6 +326,21 @@ void beginJob(char *cmd[], char *file, int desc, int mode)
 		if (mode == 2) putJobBG(thisJob);
 		
 		break;
+	}
+}
+
+// Split up tokens[] into first[] and second[] for executePipe() to use
+void separateCommands(int separation)
+{
+	if (separation < 0) return;
+	
+	for (firstSize; firstSize < separation; firstSize++)
+		first[firstSize] = tokens[firstSize];
+	
+	for (int b = separation+1; b < tokenCount; b++)
+	{
+		second[secondSize] = tokens[b];
+		secondSize++;
 	}
 }
 
@@ -377,21 +378,6 @@ void executePipe()
 	
 	int status;
 	waitpid(pid, &status, 0);
-}
-
-// Split up tokens[] into first[] and second[] for executePipe() to use
-void separateCommands(int line)
-{
-	if (line < 0) return;
-	
-	for (firstSize; firstSize < line; firstSize++)
-		first[firstSize] = tokens[firstSize];
-	
-	for (int b = line+1; b < tokenCount; b++)
-	{
-		second[secondSize] = tokens[b];
-		secondSize++;
-	}
 }
 
 // Read input from a file
@@ -457,11 +443,6 @@ int main(int argc, char *argv[], char *envp[])
 {
 	char input = '\0';
 	quashPID = getpgrp();
-	signal(SIGINT, 	SIG_IGN);
-	signal(SIGTSTP, SIG_IGN);
-	signal(SIGTTIN, SIG_IGN);
-	signal(SIGTTOU, SIG_IGN);
-	signal(SIGQUIT, SIG_IGN);
 	signal(SIGCHLD, &handleSIGCHLD);
 	
 	showPrompt();
@@ -489,7 +470,6 @@ int main(int argc, char *argv[], char *envp[])
 			
 			if (tokenCount == 0)
 			{
-				
 			}
 			else if (pipeIndex > 0)
 			{

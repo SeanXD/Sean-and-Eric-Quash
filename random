@@ -1,0 +1,10 @@
+a
+backup new main
+ctest
+main.c
+main.c~
+main.o
+makefile
+random
+SeanEricProject1Report.odt
+SeanEricProject1Report.pdf
